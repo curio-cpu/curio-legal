@@ -1,6 +1,9 @@
 export default function handler(req, res) {
   const clientKey = (process.env.TIKTOK_CLIENT_KEY || "").trim();
 
+  const redirectUri =
+    "https://curio-six-jet.vercel.app/api/callback";
+
   if (!clientKey) {
     return res.status(500).send("TIKTOK_CLIENT_KEY manquant");
   }
@@ -15,12 +18,13 @@ export default function handler(req, res) {
   const params = new URLSearchParams({
     client_key: clientKey,
     response_type: "code",
-    scope: "user.info.basic,video.publish",
-    redirect_uri: "https://curio-six-jet.vercel.app/api/callback",
+    scope: "user.info.basic,video.publish,video.upload",
+    redirect_uri: redirectUri,
     state
   });
 
-  res.redirect(
-    `https://www.tiktok.com/v2/auth/authorize/?${params.toString()}`
-  );
+  const authorizationUrl =
+    `https://www.tiktok.com/v2/auth/authorize/?${params.toString()}`;
+
+  return res.redirect(authorizationUrl);
 }
