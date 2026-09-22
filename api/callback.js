@@ -26,7 +26,8 @@ export default async function handler(req, res) {
   });
 
   try {
-    const response = await fetch(
+    // 1. Échange du code contre les tokens
+    const tokenResponse = await fetch(
       "https://open.tiktokapis.com/v2/oauth/token/",
       {
         method: "POST",
@@ -37,11 +38,40 @@ export default async function handler(req, res) {
       }
     );
 
-    const data = await response.json();
+    const tokenData = await tokenResponse.json();
 
-    if (!response.ok) {
-      return res.status(400).json(data);
+    if (!tokenResponse.ok || !tokenData.access_token) {
+      return res.status(400).json({
+        success: false,
+        error: tokenData
+      });
     }
+
+    const accessToken = tokenData.access_token;
+
+    // 2. Vérification du compte TikTok connecté
+    const creatorResponse = await fetch(
+      "https://open.tiktokapis.com/v2/post/publish/creator_info/query/",
+      {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${accessToken}`,
+          "Content-Type": "application/json"
+        }
+      }
+    );
+
+    const creatorData = await creatorResponse.json();
+
+    if (!creatorResponse.ok || creatorData.error?.code !== "ok") {
+      return res.status(400).json({
+        success: false,
+        error: creatorData
+      });
+    }
+
+    // 3. Confirmation sans jamais afficher le token
+    const creator = creatorData.data;
 
     return res.status(200).send(`
       <!DOCTYPE html>
@@ -51,13 +81,33 @@ export default async function handler(req, res) {
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Curio — TikTok connecté</title>
       </head>
-      <body style="font-family:Arial;text-align:center;padding:50px">
+
+      <body style="font-family:Arial;text-align:center;padding:40px">
+
         <h1>Curio est connecté à TikTok</h1>
+
         <p>Autorisation réussie.</p>
+
+        <h2>@${creator.creator_username || "compte TikTok"}</h2>
+
+        <p>
+          Le compte est autorisé à utiliser Content Posting API.
+        </p>
+
+        <p>
+          Options de confidentialité disponibles :
+          ${creator.privacy_level_options?.join(", ") || "non disponibles"}
+        </p>
+
       </body>
       </html>
     `);
+
   } catch (error) {
-    return res.status(500).send("Erreur lors de la connexion TikTok");
+    console.error(error);
+
+    return res.status(500).send(
+      "Erreur lors de la connexion à TikTok"
+    );
   }
 }
