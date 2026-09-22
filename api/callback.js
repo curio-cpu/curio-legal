@@ -53,7 +53,7 @@ export default async function handler(req, res) {
       : null;
 
     const supabaseResponse = await fetch(
-      `${process.env.SUPABASE_URL}/rest/v1/tiktok_tokens`,
+      `${process.env.SUPABASE_URL}/rest/v1/tiktok_tokens?on_conflict=open_id`,
       {
         method: "POST",
         headers: {
