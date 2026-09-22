@@ -26,8 +26,7 @@ export default async function handler(req, res) {
   });
 
   try {
-    // 1. Échange du code contre les tokens
-    const tokenResponse = await fetch(
+    const response = await fetch(
       "https://open.tiktokapis.com/v2/oauth/token/",
       {
         method: "POST",
@@ -38,40 +37,48 @@ export default async function handler(req, res) {
       }
     );
 
-    const tokenData = await tokenResponse.json();
+    const data = await response.json();
 
-    if (!tokenResponse.ok || !tokenData.access_token) {
-      return res.status(400).json({
-        success: false,
-        error: tokenData
-      });
+    if (!response.ok) {
+      return res.status(400).json(data);
     }
 
-    const accessToken = tokenData.access_token;
+    // Enregistrement sécurisé du token dans Supabase
+    const expiresAt = data.expires_in
+      ? new Date(Date.now() + data.expires_in * 1000).toISOString()
+      : null;
 
-    // 2. Vérification du compte TikTok connecté
-    const creatorResponse = await fetch(
-      "https://open.tiktokapis.com/v2/post/publish/creator_info/query/",
+    const refreshExpiresAt = data.refresh_expires_in
+      ? new Date(Date.now() + data.refresh_expires_in * 1000).toISOString()
+      : null;
+
+    const supabaseResponse = await fetch(
+      `${process.env.SUPABASE_URL}/rest/v1/tiktok_tokens`,
       {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${accessToken}`,
-          "Content-Type": "application/json"
-        }
+          "Content-Type": "application/json",
+          "apikey": process.env.SUPABASE_SERVICE_ROLE_KEY,
+          "Authorization": `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+          "Prefer": "resolution=merge-duplicates"
+        },
+        body: JSON.stringify({
+          open_id: data.open_id,
+          access_token: data.access_token,
+          refresh_token: data.refresh_token,
+          expires_at: expiresAt,
+          refresh_expires_at: refreshExpiresAt,
+          scope: data.scope
+        })
       }
     );
 
-    const creatorData = await creatorResponse.json();
-
-    if (!creatorResponse.ok || creatorData.error?.code !== "ok") {
-      return res.status(400).json({
-        success: false,
-        error: creatorData
-      });
+    if (!supabaseResponse.ok) {
+      const supabaseError = await supabaseResponse.text();
+      return res.status(500).send(
+        `Connexion TikTok réussie, mais erreur Supabase : ${supabaseError}`
+      );
     }
-
-    // 3. Confirmation sans jamais afficher le token
-    const creator = creatorData.data;
 
     return res.status(200).send(`
       <!DOCTYPE html>
@@ -81,33 +88,17 @@ export default async function handler(req, res) {
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Curio — TikTok connecté</title>
       </head>
-
-      <body style="font-family:Arial;text-align:center;padding:40px">
-
+      <body style="font-family:Arial;text-align:center;padding:50px">
         <h1>Curio est connecté à TikTok</h1>
-
         <p>Autorisation réussie.</p>
-
-        <h2>@${creator.creator_username || "compte TikTok"}</h2>
-
-        <p>
-          Le compte est autorisé à utiliser Content Posting API.
-        </p>
-
-        <p>
-          Options de confidentialité disponibles :
-          ${creator.privacy_level_options?.join(", ") || "non disponibles"}
-        </p>
-
+        <p>Le compte TikTok est maintenant enregistré de manière sécurisée.</p>
       </body>
       </html>
     `);
 
   } catch (error) {
-    console.error(error);
-
     return res.status(500).send(
-      "Erreur lors de la connexion à TikTok"
+      "Erreur lors de la connexion TikTok"
     );
   }
 }
