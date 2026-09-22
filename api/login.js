@@ -1,11 +1,26 @@
 export default function handler(req, res) {
   const clientKey = (process.env.TIKTOK_CLIENT_KEY || "").trim();
 
-  return res.status(200).json({
-    clientKeyPresent: !!clientKey,
-    clientKeyLength: clientKey.length,
-    clientKeyLast4: clientKey.slice(-4),
-    clientSecretPresent: !!process.env.TIKTOK_CLIENT_SECRET,
-    redirectUri: "https://curio-six-jet.vercel.app/api/callback"
+  if (!clientKey) {
+    return res.status(500).send("TIKTOK_CLIENT_KEY manquant");
+  }
+
+  const state = crypto.randomUUID();
+
+  res.setHeader(
+    "Set-Cookie",
+    `tt_state=${state}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=600`
+  );
+
+  const params = new URLSearchParams({
+    client_key: clientKey,
+    response_type: "code",
+    scope: "user.info.basic,video.publish",
+    redirect_uri: "https://curio-six-jet.vercel.app/api/callback",
+    state
   });
+
+  res.redirect(
+    `https://www.tiktok.com/v2/auth/authorize/?${params.toString()}`
+  );
 }
