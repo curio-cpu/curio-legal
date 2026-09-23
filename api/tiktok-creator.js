@@ -5,19 +5,28 @@ export default async function handler(req, res) {
       {
         headers: {
           apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
-          Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`
+          Authorization:
+            `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`
         }
       }
     );
 
     if (!supabaseResponse.ok) {
-      return res.status(500).send("Erreur lors de la récupération du token");
+      return res.status(500).send(
+        "Erreur lors de la récupération du token"
+      );
     }
 
-    const tokens = await supabaseResponse.json();
+    const tokens =
+      await supabaseResponse.json();
 
-    if (!tokens.length || !tokens[0].access_token) {
-      return res.status(404).send("Aucun token TikTok trouvé");
+    if (
+      !tokens.length ||
+      !tokens[0].access_token
+    ) {
+      return res.status(404).send(
+        "Aucun token TikTok trouvé"
+      );
     }
 
     const response = await fetch(
@@ -25,30 +34,65 @@ export default async function handler(req, res) {
       {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${tokens[0].access_token}`,
-          "Content-Type": "application/json; charset=UTF-8"
+          Authorization:
+            `Bearer ${tokens[0].access_token}`,
+          "Content-Type":
+            "application/json; charset=UTF-8"
         }
       }
     );
 
-    const data = await response.json();
+    const data =
+      await response.json();
 
     if (!response.ok) {
-      return res.status(response.status).json(data);
+      return res
+        .status(response.status)
+        .json(data);
     }
 
     return res.status(200).json({
       success: true,
       creator: {
-        username: data.data?.creator_username,
-        nickname: data.data?.creator_nickname,
-        privacy_level_options: data.data?.privacy_level_options,
+        username:
+          data.data?.creator_username,
+
+        nickname:
+          data.data?.creator_nickname,
+
+        avatar_url:
+          data.data?.creator_avatar_url,
+
+        privacy_level_options:
+          data.data?.privacy_level_options || [],
+
+        comment_disabled:
+          Boolean(
+            data.data?.comment_disabled
+          ),
+
+        duet_disabled:
+          Boolean(
+            data.data?.duet_disabled
+          ),
+
+        stitch_disabled:
+          Boolean(
+            data.data?.stitch_disabled
+          ),
+
         max_video_post_duration_sec:
           data.data?.max_video_post_duration_sec
       }
     });
 
   } catch (error) {
-    return res.status(500).send("Erreur serveur");
+
+    return res.status(500).json({
+      success: false,
+      message: "Erreur serveur",
+      error: error.message
+    });
+
   }
 }
