@@ -224,7 +224,8 @@ nav a {
   </div>
 
   <div id="creatorBox" class="creator" style="display:none;">
-    Compte TikTok : <strong id="creatorName">—</strong>
+    Compte TikTok :
+    <strong id="creatorName">—</strong>
   </div>
 
   <div class="card">
@@ -269,21 +270,30 @@ nav a {
     <div id="interactionOptions">
 
       <div class="checkbox-row" id="commentRow">
-        <input type="checkbox" id="allowComment">
+        <input
+          type="checkbox"
+          id="allowComment">
+
         <label for="allowComment">
           Autoriser les commentaires
         </label>
       </div>
 
       <div class="checkbox-row" id="duetRow">
-        <input type="checkbox" id="allowDuet">
+        <input
+          type="checkbox"
+          id="allowDuet">
+
         <label for="allowDuet">
           Autoriser le Duet
         </label>
       </div>
 
       <div class="checkbox-row" id="stitchRow">
-        <input type="checkbox" id="allowStitch">
+        <input
+          type="checkbox"
+          id="allowStitch">
+
         <label for="allowStitch">
           Autoriser le Stitch
         </label>
@@ -294,12 +304,16 @@ nav a {
     <div class="consent">
 
       <label for="consent">
-        <input type="checkbox" id="consent">
+
+        <input
+          type="checkbox"
+          id="consent">
 
         <span>
           J’autorise Curio à envoyer cette vidéo et les informations
           sélectionnées ci-dessus à mon compte TikTok.
         </span>
+
       </label>
 
     </div>
@@ -318,9 +332,15 @@ nav a {
   </div>
 
   <nav>
-    <a href="privacy.html">Privacy Policy</a>
+    <a href="privacy.html">
+      Privacy Policy
+    </a>
+
     &nbsp; · &nbsp;
-    <a href="terms.html">Terms of Service</a>
+
+    <a href="terms.html">
+      Terms of Service
+    </a>
   </nav>
 
 </main>
@@ -396,10 +416,17 @@ function addPrivacyOption(value) {
   option.value = value;
 
   const labels = {
-    PUBLIC_TO_EVERYONE: "PUBLIC_TO_EVERYONE — Tout le monde",
-    FOLLOWER_OF_CREATOR: "FOLLOWER_OF_CREATOR — Abonnés",
-    MUTUAL_FOLLOW_FRIENDS: "MUTUAL_FOLLOW_FRIENDS — Amis",
-    SELF_ONLY: "SELF_ONLY — Privé"
+    PUBLIC_TO_EVERYONE:
+      "PUBLIC_TO_EVERYONE — Tout le monde",
+
+    FOLLOWER_OF_CREATOR:
+      "FOLLOWER_OF_CREATOR — Abonnés",
+
+    MUTUAL_FOLLOW_FRIENDS:
+      "MUTUAL_FOLLOW_FRIENDS — Amis",
+
+    SELF_ONLY:
+      "SELF_ONLY — Privé"
   };
 
   option.textContent =
@@ -415,7 +442,9 @@ function configureInteraction(
 ) {
 
   checkbox.checked = false;
-  checkbox.disabled = Boolean(disabled);
+
+  checkbox.disabled =
+    Boolean(disabled);
 
   if (disabled) {
     row.classList.add("disabled");
@@ -460,8 +489,10 @@ async function loadCreatorInfo() {
       document.createElement("option");
 
     placeholder.value = "";
+
     placeholder.textContent =
       "Sélectionner une confidentialité";
+
     placeholder.disabled = true;
     placeholder.selected = true;
 
@@ -472,7 +503,9 @@ async function loadCreatorInfo() {
     const options =
       creatorInfo.privacy_level_options || [];
 
-    options.forEach(addPrivacyOption);
+    options.forEach(
+      addPrivacyOption
+    );
 
     configureInteraction(
       allowComment,
@@ -574,7 +607,8 @@ videoPreview.addEventListener(
           maxDuration +
           " secondes pour ce compte.";
 
-        publishButton.disabled = true;
+        publishButton.disabled =
+          true;
 
       } else {
 
@@ -584,7 +618,9 @@ videoPreview.addEventListener(
           " secondes.";
 
         updatePublishButton();
+
       }
+
     }
 
   }
@@ -601,27 +637,37 @@ publishButton.addEventListener(
       privacySelect.value;
 
     if (!title) {
+
       showStatus(
         "Veuillez saisir un titre."
       );
+
       return;
     }
 
     if (!privacy_level) {
+
       showStatus(
         "Veuillez sélectionner une confidentialité."
       );
+
       return;
     }
 
     if (!consent.checked) {
+
       showStatus(
         "Votre autorisation est nécessaire avant la publication."
       );
+
       return;
     }
 
-    publishButton.disabled = true;
+    publishButton.disabled =
+      true;
+
+    publishButton.textContent =
+      "Publication en cours...";
 
     showStatus(
       "Préparation de la publication TikTok..."
@@ -634,9 +680,12 @@ publishButton.addEventListener(
           "/api/tiktok-publish-test",
           {
             method: "POST",
+
             headers: {
-              "Content-Type": "application/json"
+              "Content-Type":
+                "application/json"
             },
+
             body: JSON.stringify({
 
               title,
@@ -659,12 +708,22 @@ publishButton.addEventListener(
       const data =
         await response.json();
 
-      if (!response.ok || !data.success) {
+      if (
+        !response.ok ||
+        !data.success
+      ) {
 
         showStatus(
           "Erreur TikTok :\n" +
-          JSON.stringify(data, null, 2)
+          JSON.stringify(
+            data,
+            null,
+            2
+          )
         );
+
+        publishButton.textContent =
+          "Publier sur TikTok";
 
         publishButton.disabled =
           false;
@@ -690,7 +749,10 @@ publishButton.addEventListener(
 
         await new Promise(
           resolve =>
-            setTimeout(resolve, 5000)
+            setTimeout(
+              resolve,
+              5000
+            )
         );
 
         const statusResponse =
@@ -725,10 +787,20 @@ publishButton.addEventListener(
           showStatus(
             "Publication TikTok terminée.\n\n" +
             "Publish ID : " +
-            publishId
+            publishId +
+            "\n\n" +
+            "Cette publication est terminée."
           );
 
-          finished = true;
+          publishButton.disabled =
+            true;
+
+          publishButton.textContent =
+            "Publication terminée";
+
+          finished =
+            true;
+
           break;
         }
 
@@ -746,7 +818,15 @@ publishButton.addEventListener(
             )
           );
 
-          finished = true;
+          publishButton.textContent =
+            "Publier sur TikTok";
+
+          publishButton.disabled =
+            false;
+
+          finished =
+            true;
+
           break;
         }
       }
@@ -759,6 +839,9 @@ publishButton.addEventListener(
           publishId
         );
 
+        publishButton.textContent =
+          "Publier sur TikTok";
+
       }
 
     } catch (error) {
@@ -768,9 +851,25 @@ publishButton.addEventListener(
         error.message
       );
 
+      publishButton.textContent =
+        "Publier sur TikTok";
+
     } finally {
 
-      updatePublishButton();
+      /*
+       * Après PUBLISH_COMPLETE :
+       * le bouton reste définitivement désactivé
+       * pour empêcher une double publication.
+       */
+
+      if (
+        publishButton.textContent !==
+        "Publication terminée"
+      ) {
+
+        updatePublishButton();
+
+      }
 
     }
 
