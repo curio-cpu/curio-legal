@@ -4,84 +4,136 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>Curio — Vidéos éducatives et culturelles</title>
+<title>Curio — TikTok</title>
 
 <style>
-*{
-  box-sizing:border-box;
+* {
+  box-sizing: border-box;
 }
 
-body{
-  margin:0;
-  background:#050505;
-  color:#fff;
-  font-family:Arial,sans-serif;
-  text-align:center;
+body {
+  margin: 0;
+  background: #050505;
+  color: #fff;
+  font-family: Arial, sans-serif;
 }
 
-main{
-  max-width:700px;
-  margin:auto;
-  padding:70px 25px;
+main {
+  max-width: 700px;
+  margin: auto;
+  padding: 50px 22px;
+  text-align: center;
 }
 
-h1{
-  font-size:52px;
-  margin:20px 0 10px;
-  color:#fff;
+h1 {
+  font-size: 52px;
+  margin: 15px 0 8px;
 }
 
-.gold{
-  color:#d9ad55;
+.gold {
+  color: #d9ad55;
 }
 
-.subtitle{
-  font-size:21px;
-  color:#d9ad55;
-  margin-bottom:30px;
+.subtitle {
+  color: #d9ad55;
+  font-size: 21px;
+  margin-bottom: 30px;
 }
 
-.description{
-  font-size:18px;
-  line-height:1.7;
-  color:#ccc;
-  margin-bottom:35px;
+.description {
+  color: #ccc;
+  font-size: 17px;
+  line-height: 1.6;
 }
 
-.login-button{
-  display:inline-block;
-  padding:14px 26px;
-  background:#fe2c55;
-  color:#fff;
-  text-decoration:none;
-  border-radius:8px;
-  font-weight:600;
-  font-size:16px;
-  transition:opacity 0.2s;
+.card {
+  margin-top: 35px;
+  padding: 24px;
+  background: #111;
+  border-radius: 14px;
+  border: 1px solid #292929;
 }
 
-.login-button:hover{
-  opacity:0.85;
+video {
+  width: 100%;
+  max-height: 420px;
+  border-radius: 10px;
+  background: #000;
 }
 
-nav{
-  margin-top:50px;
+label {
+  display: block;
+  text-align: left;
+  margin-top: 22px;
+  margin-bottom: 8px;
+  color: #ccc;
+  font-size: 14px;
 }
 
-nav a{
-  color:#d9ad55;
-  text-decoration:none;
+input,
+select {
+  width: 100%;
+  padding: 13px;
+  border-radius: 8px;
+  border: 1px solid #444;
+  background: #050505;
+  color: #fff;
+  font-size: 15px;
 }
 
-nav a:hover{
-  text-decoration:underline;
+.button {
+  display: inline-block;
+  width: 100%;
+  margin-top: 22px;
+  padding: 15px 20px;
+  border: 0;
+  border-radius: 8px;
+  background: #fe2c55;
+  color: white;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
 }
 
-.note{
-  margin-top:22px;
-  font-size:13px;
-  line-height:1.5;
-  color:#888;
+.button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.login {
+  display: inline-block;
+  padding: 14px 25px;
+  background: #fe2c55;
+  color: white;
+  text-decoration: none;
+  border-radius: 8px;
+  font-weight: bold;
+}
+
+.status {
+  margin-top: 22px;
+  padding: 15px;
+  border-radius: 8px;
+  background: #181818;
+  color: #ccc;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+nav {
+  margin-top: 45px;
+}
+
+nav a {
+  color: #d9ad55;
+  text-decoration: none;
+}
+
+.small {
+  margin-top: 10px;
+  color: #888;
+  font-size: 13px;
+  line-height: 1.5;
 }
 </style>
 </head>
@@ -92,25 +144,61 @@ nav a:hover{
 
   <h1><span class="gold">C</span>urio</h1>
 
-  <p class="subtitle">
+  <div class="subtitle">
     Des histoires qui éclairent.
-  </p>
+  </div>
 
   <p class="description">
     Curio crée et publie des vidéos éducatives et culturelles
     sur TikTok, avec l'autorisation de l'utilisateur.
   </p>
 
-  <a
-    href="/api/login"
-    class="login-button">
-    Se connecter avec TikTok
-  </a>
+  <div id="loginSection">
+    <a href="/api/login" class="login">
+      Se connecter avec TikTok
+    </a>
+  </div>
 
-  <p class="note">
-    La connexion à TikTok permet à l'utilisateur
-    d'autoriser Curio à publier du contenu sur son compte.
-  </p>
+  <div class="card">
+
+    <h2>Publication TikTok</h2>
+
+    <video
+      controls
+      preload="metadata"
+      src="https://raw.githubusercontent.com/curio-cpu/curio-legal/main/2026-09-22-173225235.mp4">
+    </video>
+
+    <label for="title">
+      Titre de la vidéo
+    </label>
+
+    <input
+      id="title"
+      type="text"
+      value="Curio — Les premières balles de golf sur la Lune">
+
+    <label for="privacy">
+      Confidentialité
+    </label>
+
+    <select id="privacy">
+      <option value="SELF_ONLY">
+        SELF_ONLY — Privé
+      </option>
+    </select>
+
+    <button
+      id="publishButton"
+      class="button">
+      Publier sur TikTok
+    </button>
+
+    <div id="status" class="status">
+      Prêt pour le test Sandbox.
+    </div>
+
+  </div>
 
   <nav>
     <a href="privacy.html">Privacy Policy</a>
@@ -119,6 +207,160 @@ nav a:hover{
   </nav>
 
 </main>
+
+<script>
+
+const publishButton =
+  document.getElementById("publishButton");
+
+const statusBox =
+  document.getElementById("status");
+
+const titleInput =
+  document.getElementById("title");
+
+const privacySelect =
+  document.getElementById("privacy");
+
+function showStatus(message) {
+  statusBox.textContent = message;
+}
+
+publishButton.addEventListener("click", async () => {
+
+  const title = titleInput.value.trim();
+  const privacy_level = privacySelect.value;
+
+  if (!title) {
+    showStatus("Veuillez saisir un titre.");
+    return;
+  }
+
+  const confirmed = confirm(
+    "Confirmer la publication de cette vidéo sur TikTok ?"
+  );
+
+  if (!confirmed) {
+    return;
+  }
+
+  publishButton.disabled = true;
+
+  showStatus(
+    "Préparation de la publication TikTok..."
+  );
+
+  try {
+
+    const response = await fetch(
+      "/api/tiktok-publish-test",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          title,
+          privacy_level
+        })
+      }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+
+      showStatus(
+        "Erreur TikTok : " +
+        JSON.stringify(data)
+      );
+
+      publishButton.disabled = false;
+      return;
+    }
+
+    showStatus(
+      "Vidéo envoyée à TikTok. " +
+      "Vérification du statut..."
+    );
+
+    const publishId = data.publish_id;
+
+    let finished = false;
+
+    for (let attempt = 1; attempt <= 6; attempt++) {
+
+      await new Promise(resolve =>
+        setTimeout(resolve, 5000)
+      );
+
+      const statusResponse = await fetch(
+        "/api/tiktok-status?publish_id=" +
+        encodeURIComponent(publishId)
+      );
+
+      const statusData =
+        await statusResponse.json();
+
+      const currentStatus =
+        statusData?.tiktok?.data?.status;
+
+      showStatus(
+        "Statut TikTok : " +
+        (currentStatus || "traitement en cours") +
+        "\n\nPublish ID : " +
+        publishId
+      );
+
+      if (
+        currentStatus === "PUBLISH_COMPLETE"
+      ) {
+        showStatus(
+          "Publication TikTok terminée.\n\n" +
+          "Publish ID : " +
+          publishId
+        );
+
+        finished = true;
+        break;
+      }
+
+      if (
+        currentStatus === "FAILED"
+      ) {
+        showStatus(
+          "TikTok a indiqué un échec de publication.\n\n" +
+          JSON.stringify(statusData)
+        );
+
+        finished = true;
+        break;
+      }
+    }
+
+    if (!finished) {
+      showStatus(
+        "La vidéo est toujours en cours de traitement.\n\n" +
+        "Publish ID : " +
+        publishId
+      );
+    }
+
+  } catch (error) {
+
+    showStatus(
+      "Erreur de connexion : " +
+      error.message
+    );
+
+  } finally {
+
+    publishButton.disabled = false;
+  }
+
+});
+
+</script>
 
 </body>
 </html>
