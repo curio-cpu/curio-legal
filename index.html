@@ -52,6 +52,11 @@ h1 {
   background: #111;
   border-radius: 14px;
   border: 1px solid #292929;
+  text-align: left;
+}
+
+.card h2 {
+  text-align: center;
 }
 
 video {
@@ -81,8 +86,52 @@ select {
   font-size: 15px;
 }
 
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px;
+  color: #ccc;
+  font-size: 14px;
+  text-align: left;
+}
+
+.checkbox-row input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.checkbox-row.disabled {
+  opacity: 0.45;
+}
+
+.consent {
+  margin-top: 22px;
+  padding: 15px;
+  border-radius: 8px;
+  background: #181818;
+  border: 1px solid #333;
+}
+
+.consent label {
+  margin: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  color: #ccc;
+}
+
+.consent input {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
 .button {
-  display: inline-block;
+  display: block;
   width: 100%;
   margin-top: 22px;
   padding: 15px 20px;
@@ -110,6 +159,19 @@ select {
   font-weight: bold;
 }
 
+.creator {
+  margin-top: 20px;
+  padding: 14px;
+  background: #181818;
+  border-radius: 8px;
+  color: #ccc;
+  text-align: left;
+}
+
+.creator strong {
+  color: #fff;
+}
+
 .status {
   margin-top: 22px;
   padding: 15px;
@@ -118,10 +180,12 @@ select {
   color: #ccc;
   line-height: 1.5;
   word-break: break-word;
+  white-space: pre-wrap;
 }
 
 nav {
   margin-top: 45px;
+  text-align: center;
 }
 
 nav a {
@@ -159,15 +223,24 @@ nav a {
     </a>
   </div>
 
+  <div id="creatorBox" class="creator" style="display:none;">
+    Compte TikTok : <strong id="creatorName">—</strong>
+  </div>
+
   <div class="card">
 
     <h2>Publication TikTok</h2>
 
     <video
+      id="videoPreview"
       controls
       preload="metadata"
       src="https://raw.githubusercontent.com/curio-cpu/curio-legal/main/2026-09-22-173225235.mp4">
     </video>
+
+    <div class="small" id="durationInfo">
+      Vérification de la durée vidéo...
+    </div>
 
     <label for="title">
       Titre de la vidéo
@@ -176,6 +249,7 @@ nav a {
     <input
       id="title"
       type="text"
+      maxlength="2200"
       value="Curio — Les premières balles de golf sur la Lune">
 
     <label for="privacy">
@@ -183,19 +257,62 @@ nav a {
     </label>
 
     <select id="privacy">
-      <option value="SELF_ONLY">
-        SELF_ONLY — Privé
+      <option value="" selected disabled>
+        Sélectionner une confidentialité
       </option>
     </select>
 
+    <label>
+      Interactions
+    </label>
+
+    <div id="interactionOptions">
+
+      <div class="checkbox-row" id="commentRow">
+        <input type="checkbox" id="allowComment">
+        <label for="allowComment">
+          Autoriser les commentaires
+        </label>
+      </div>
+
+      <div class="checkbox-row" id="duetRow">
+        <input type="checkbox" id="allowDuet">
+        <label for="allowDuet">
+          Autoriser le Duet
+        </label>
+      </div>
+
+      <div class="checkbox-row" id="stitchRow">
+        <input type="checkbox" id="allowStitch">
+        <label for="allowStitch">
+          Autoriser le Stitch
+        </label>
+      </div>
+
+    </div>
+
+    <div class="consent">
+
+      <label for="consent">
+        <input type="checkbox" id="consent">
+
+        <span>
+          J’autorise Curio à envoyer cette vidéo et les informations
+          sélectionnées ci-dessus à mon compte TikTok.
+        </span>
+      </label>
+
+    </div>
+
     <button
       id="publishButton"
-      class="button">
+      class="button"
+      disabled>
       Publier sur TikTok
     </button>
 
     <div id="status" class="status">
-      Prêt pour le test Sandbox.
+      Connexion aux informations du compte TikTok...
     </div>
 
   </div>
@@ -222,143 +339,445 @@ const titleInput =
 const privacySelect =
   document.getElementById("privacy");
 
+const consent =
+  document.getElementById("consent");
+
+const creatorBox =
+  document.getElementById("creatorBox");
+
+const creatorName =
+  document.getElementById("creatorName");
+
+const videoPreview =
+  document.getElementById("videoPreview");
+
+const durationInfo =
+  document.getElementById("durationInfo");
+
+const allowComment =
+  document.getElementById("allowComment");
+
+const allowDuet =
+  document.getElementById("allowDuet");
+
+const allowStitch =
+  document.getElementById("allowStitch");
+
+const commentRow =
+  document.getElementById("commentRow");
+
+const duetRow =
+  document.getElementById("duetRow");
+
+const stitchRow =
+  document.getElementById("stitchRow");
+
+let creatorInfo = null;
+
 function showStatus(message) {
   statusBox.textContent = message;
 }
 
-publishButton.addEventListener("click", async () => {
+function updatePublishButton() {
 
-  const title = titleInput.value.trim();
-  const privacy_level = privacySelect.value;
+  publishButton.disabled =
+    !creatorInfo ||
+    !privacySelect.value ||
+    !consent.checked ||
+    !titleInput.value.trim();
 
-  if (!title) {
-    showStatus("Veuillez saisir un titre.");
-    return;
+}
+
+function addPrivacyOption(value) {
+
+  const option =
+    document.createElement("option");
+
+  option.value = value;
+
+  const labels = {
+    PUBLIC_TO_EVERYONE: "PUBLIC_TO_EVERYONE — Tout le monde",
+    FOLLOWER_OF_CREATOR: "FOLLOWER_OF_CREATOR — Abonnés",
+    MUTUAL_FOLLOW_FRIENDS: "MUTUAL_FOLLOW_FRIENDS — Amis",
+    SELF_ONLY: "SELF_ONLY — Privé"
+  };
+
+  option.textContent =
+    labels[value] || value;
+
+  privacySelect.appendChild(option);
+}
+
+function configureInteraction(
+  checkbox,
+  row,
+  disabled
+) {
+
+  checkbox.checked = false;
+  checkbox.disabled = Boolean(disabled);
+
+  if (disabled) {
+    row.classList.add("disabled");
+  } else {
+    row.classList.remove("disabled");
   }
+}
 
-  const confirmed = confirm(
-    "Confirmer la publication de cette vidéo sur TikTok ?"
-  );
-
-  if (!confirmed) {
-    return;
-  }
-
-  publishButton.disabled = true;
-
-  showStatus(
-    "Préparation de la publication TikTok..."
-  );
+async function loadCreatorInfo() {
 
   try {
 
-    const response = await fetch(
-      "/api/tiktok-publish-test",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          title,
-          privacy_level
-        })
-      }
-    );
+    const response =
+      await fetch("/api/tiktok-creator");
 
-    const data = await response.json();
+    const data =
+      await response.json();
 
     if (!response.ok || !data.success) {
 
       showStatus(
-        "Erreur TikTok : " +
-        JSON.stringify(data)
+        "Connectez-vous d'abord à TikTok."
       );
 
-      publishButton.disabled = false;
       return;
     }
 
-    showStatus(
-      "Vidéo envoyée à TikTok. " +
-      "Vérification du statut..."
+    creatorInfo =
+      data.creator;
+
+    creatorBox.style.display =
+      "block";
+
+    creatorName.textContent =
+      creatorInfo.nickname
+        ? `${creatorInfo.nickname} (@${creatorInfo.username})`
+        : `@${creatorInfo.username}`;
+
+    privacySelect.innerHTML = "";
+
+    const placeholder =
+      document.createElement("option");
+
+    placeholder.value = "";
+    placeholder.textContent =
+      "Sélectionner une confidentialité";
+    placeholder.disabled = true;
+    placeholder.selected = true;
+
+    privacySelect.appendChild(
+      placeholder
     );
 
-    const publishId = data.publish_id;
+    const options =
+      creatorInfo.privacy_level_options || [];
 
-    let finished = false;
+    options.forEach(addPrivacyOption);
 
-    for (let attempt = 1; attempt <= 6; attempt++) {
+    configureInteraction(
+      allowComment,
+      commentRow,
+      creatorInfo.comment_disabled
+    );
 
-      await new Promise(resolve =>
-        setTimeout(resolve, 5000)
+    configureInteraction(
+      allowDuet,
+      duetRow,
+      creatorInfo.duet_disabled
+    );
+
+    configureInteraction(
+      allowStitch,
+      stitchRow,
+      creatorInfo.stitch_disabled
+    );
+
+    const maxDuration =
+      Number(
+        creatorInfo.max_video_post_duration_sec
       );
 
-      const statusResponse = await fetch(
-        "/api/tiktok-status?publish_id=" +
-        encodeURIComponent(publishId)
-      );
+    if (
+      Number.isFinite(maxDuration) &&
+      maxDuration > 0
+    ) {
 
-      const statusData =
-        await statusResponse.json();
+      durationInfo.textContent =
+        "Durée maximale autorisée par TikTok : " +
+        maxDuration +
+        " secondes.";
 
-      const currentStatus =
-        statusData?.tiktok?.data?.status;
+    } else {
 
-      showStatus(
-        "Statut TikTok : " +
-        (currentStatus || "traitement en cours") +
-        "\n\nPublish ID : " +
-        publishId
-      );
+      durationInfo.textContent =
+        "Durée maximale TikTok non disponible.";
 
-      if (
-        currentStatus === "PUBLISH_COMPLETE"
-      ) {
-        showStatus(
-          "Publication TikTok terminée.\n\n" +
-          "Publish ID : " +
-          publishId
-        );
-
-        finished = true;
-        break;
-      }
-
-      if (
-        currentStatus === "FAILED"
-      ) {
-        showStatus(
-          "TikTok a indiqué un échec de publication.\n\n" +
-          JSON.stringify(statusData)
-        );
-
-        finished = true;
-        break;
-      }
     }
 
-    if (!finished) {
-      showStatus(
-        "La vidéo est toujours en cours de traitement.\n\n" +
-        "Publish ID : " +
-        publishId
-      );
-    }
+    showStatus(
+      "Compte TikTok connecté. Sélectionnez les paramètres de publication."
+    );
+
+    updatePublishButton();
 
   } catch (error) {
 
     showStatus(
-      "Erreur de connexion : " +
+      "Impossible de récupérer les informations TikTok : " +
       error.message
     );
 
-  } finally {
-
-    publishButton.disabled = false;
   }
+}
 
-});
+privacySelect.addEventListener(
+  "change",
+  updatePublishButton
+);
+
+consent.addEventListener(
+  "change",
+  updatePublishButton
+);
+
+titleInput.addEventListener(
+  "input",
+  updatePublishButton
+);
+
+videoPreview.addEventListener(
+  "loadedmetadata",
+  () => {
+
+    if (
+      creatorInfo &&
+      creatorInfo.max_video_post_duration_sec
+    ) {
+
+      const duration =
+        videoPreview.duration;
+
+      const maxDuration =
+        Number(
+          creatorInfo.max_video_post_duration_sec
+        );
+
+      if (
+        Number.isFinite(duration) &&
+        duration > maxDuration
+      ) {
+
+        durationInfo.textContent =
+          "Erreur : cette vidéo dure " +
+          Math.round(duration) +
+          " secondes, alors que TikTok autorise au maximum " +
+          maxDuration +
+          " secondes pour ce compte.";
+
+        publishButton.disabled = true;
+
+      } else {
+
+        durationInfo.textContent =
+          "Durée vidéo : " +
+          Math.round(duration) +
+          " secondes.";
+
+        updatePublishButton();
+      }
+    }
+
+  }
+);
+
+publishButton.addEventListener(
+  "click",
+  async () => {
+
+    const title =
+      titleInput.value.trim();
+
+    const privacy_level =
+      privacySelect.value;
+
+    if (!title) {
+      showStatus(
+        "Veuillez saisir un titre."
+      );
+      return;
+    }
+
+    if (!privacy_level) {
+      showStatus(
+        "Veuillez sélectionner une confidentialité."
+      );
+      return;
+    }
+
+    if (!consent.checked) {
+      showStatus(
+        "Votre autorisation est nécessaire avant la publication."
+      );
+      return;
+    }
+
+    publishButton.disabled = true;
+
+    showStatus(
+      "Préparation de la publication TikTok..."
+    );
+
+    try {
+
+      const response =
+        await fetch(
+          "/api/tiktok-publish-test",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+
+              title,
+
+              privacy_level,
+
+              allow_comment:
+                allowComment.checked,
+
+              allow_duet:
+                allowDuet.checked,
+
+              allow_stitch:
+                allowStitch.checked
+
+            })
+          }
+        );
+
+      const data =
+        await response.json();
+
+      if (!response.ok || !data.success) {
+
+        showStatus(
+          "Erreur TikTok :\n" +
+          JSON.stringify(data, null, 2)
+        );
+
+        publishButton.disabled =
+          false;
+
+        return;
+      }
+
+      const publishId =
+        data.publish_id;
+
+      showStatus(
+        "Vidéo envoyée à TikTok.\n\n" +
+        "Vérification du statut..."
+      );
+
+      let finished = false;
+
+      for (
+        let attempt = 1;
+        attempt <= 6;
+        attempt++
+      ) {
+
+        await new Promise(
+          resolve =>
+            setTimeout(resolve, 5000)
+        );
+
+        const statusResponse =
+          await fetch(
+            "/api/tiktok-status?publish_id=" +
+            encodeURIComponent(
+              publishId
+            )
+          );
+
+        const statusData =
+          await statusResponse.json();
+
+        const currentStatus =
+          statusData?.tiktok?.data?.status;
+
+        showStatus(
+          "Statut TikTok : " +
+          (
+            currentStatus ||
+            "traitement en cours"
+          ) +
+          "\n\nPublish ID : " +
+          publishId
+        );
+
+        if (
+          currentStatus ===
+          "PUBLISH_COMPLETE"
+        ) {
+
+          showStatus(
+            "Publication TikTok terminée.\n\n" +
+            "Publish ID : " +
+            publishId
+          );
+
+          finished = true;
+          break;
+        }
+
+        if (
+          currentStatus ===
+          "FAILED"
+        ) {
+
+          showStatus(
+            "TikTok a indiqué un échec de publication.\n\n" +
+            JSON.stringify(
+              statusData,
+              null,
+              2
+            )
+          );
+
+          finished = true;
+          break;
+        }
+      }
+
+      if (!finished) {
+
+        showStatus(
+          "La vidéo est toujours en cours de traitement.\n\n" +
+          "Publish ID : " +
+          publishId
+        );
+
+      }
+
+    } catch (error) {
+
+      showStatus(
+        "Erreur de connexion : " +
+        error.message
+      );
+
+    } finally {
+
+      updatePublishButton();
+
+    }
+
+  }
+);
+
+loadCreatorInfo();
 
 </script>
 
