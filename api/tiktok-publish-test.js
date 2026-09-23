@@ -1,13 +1,14 @@
 export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    return res.status(405).json({
-      success: false,
-      message: "Utilise POST pour lancer le test Direct Post."
-    });
-  }
-
   try {
-    // 1. Récupérer le dernier token TikTok enregistré
+    // Autoriser GET uniquement pour lancer le test depuis le navigateur
+    if (req.method !== "GET" && req.method !== "POST") {
+      return res.status(405).json({
+        success: false,
+        message: "Méthode non autorisée."
+      });
+    }
+
+    // 1. Récupérer le dernier compte TikTok connecté
     const supabaseResponse = await fetch(
       `${process.env.SUPABASE_URL}/rest/v1/tiktok_tokens?select=*&order=updated_at.desc&limit=1`,
       {
@@ -20,8 +21,16 @@ export default async function handler(req, res) {
 
     const tokens = await supabaseResponse.json();
 
-    if (!supabaseResponse.ok || !tokens.length) {
+    if (!supabaseResponse.ok) {
       return res.status(500).json({
+        success: false,
+        message: "Erreur lors de la récupération du compte TikTok.",
+        supabase: tokens
+      });
+    }
+
+    if (!tokens.length) {
+      return res.status(404).json({
         success: false,
         message: "Aucun compte TikTok connecté."
       });
@@ -29,10 +38,11 @@ export default async function handler(req, res) {
 
     const token = tokens[0];
 
-    // 2. Initialiser le Direct Post TikTok
-    // Taille correspondant à notre vidéo de test (~17 MB)
+    // 2. Taille de la vidéo de test
     const videoSize = 17074676;
 
+    // 3. Initialiser le Direct Post TikTok
+    // SELF_ONLY = test privé, aucune publication publique
     const tiktokResponse = await fetch(
       "https://open.tiktokapis.com/v2/post/publish/video/init/",
       {
@@ -61,6 +71,7 @@ export default async function handler(req, res) {
 
     const data = await tiktokResponse.json();
 
+    // 4. Retourner l'erreur TikTok si nécessaire
     if (!tiktokResponse.ok) {
       return res.status(tiktokResponse.status).json({
         success: false,
@@ -68,6 +79,7 @@ export default async function handler(req, res) {
       });
     }
 
+    // 5. Test réussi
     return res.status(200).json({
       success: true,
       message: "Direct Post TikTok initialisé avec succès.",
