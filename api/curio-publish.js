@@ -10,13 +10,17 @@ export default async function handler(req, res) {
     const videoUrl =
       "https://raw.githubusercontent.com/curio-cpu/curio-legal/main/2026-09-22-173225235.mp4";
 
-    // Récupérer le token TikTok
+    // =====================================================
+    // 1. Récupérer le token TikTok
+    // =====================================================
+
     const supabaseResponse = await fetch(
       `${process.env.SUPABASE_URL}/rest/v1/tiktok_tokens?select=*&order=updated_at.desc&limit=1`,
       {
         headers: {
-          apikey: process.env.SUPABASE_SECRET_KEY,
-          Authorization: `Bearer ${process.env.SUPABASE_SECRET_KEY}`
+          apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+          Authorization:
+            `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`
         }
       }
     );
@@ -26,18 +30,81 @@ export default async function handler(req, res) {
     if (!supabaseResponse.ok || !tokens.length) {
       return res.status(500).json({
         success: false,
+        step: "TOKEN",
         message: "Token TikTok introuvable."
       });
     }
 
     const token = tokens[0];
 
-    // Télécharger la vidéo
+    // =====================================================
+    // 2. Récupérer les informations du créateur
+    // =====================================================
+
+    const creatorResponse = await fetch(
+      "https://open.tiktokapis.com/v2/post/publish/creator_info/query/",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token.access_token}`,
+          "Content-Type": "application/json; charset=UTF-8"
+        }
+      }
+    );
+
+    const creatorData = await creatorResponse.json();
+
+    if (!creatorResponse.ok) {
+      return res.status(creatorResponse.status).json({
+        success: false,
+        step: "CREATOR_INFO",
+        tiktok: creatorData
+      });
+    }
+
+    const creator = creatorData.data;
+
+    if (!creator) {
+      return res.status(500).json({
+        success: false,
+        step: "CREATOR_INFO",
+        message: "Informations créateur introuvables."
+      });
+    }
+
+    // =====================================================
+    // 3. Vérifier les options de confidentialité
+    // =====================================================
+
+    const privacyOptions =
+      creator.privacy_level_options || [];
+
+    if (!privacyOptions.length) {
+      return res.status(400).json({
+        success: false,
+        step: "PRIVACY",
+        message:
+          "Aucun niveau de confidentialité disponible.",
+        creator: creator
+      });
+    }
+
+    // Pour le premier test Sandbox, on utilise SELF_ONLY
+    // uniquement si TikTok l'autorise pour ce compte.
+    const privacyLevel = privacyOptions.includes("SELF_ONLY")
+      ? "SELF_ONLY"
+      : privacyOptions[0];
+
+    // =====================================================
+    // 4. Télécharger la vidéo depuis GitHub
+    // =====================================================
+
     const videoResponse = await fetch(videoUrl);
 
     if (!videoResponse.ok) {
       return res.status(500).json({
         success: false,
+        step: "VIDEO_DOWNLOAD",
         message: "Impossible de récupérer la vidéo."
       });
     }
@@ -48,7 +115,18 @@ export default async function handler(req, res) {
 
     const videoSize = videoBuffer.length;
 
-    // Initialiser Direct Post
+    if (!videoSize) {
+      return res.status(400).json({
+        success: false,
+        step: "VIDEO",
+        message: "La vidéo est vide."
+      });
+    }
+
+    // =====================================================
+    // 5. Initialiser Direct Post
+    // =====================================================
+
     const initResponse = await fetch(
       "https://open.tiktokapis.com/v2/post/publish/video/init/",
       {
@@ -59,11 +137,12 @@ export default async function handler(req, res) {
         },
         body: JSON.stringify({
           post_info: {
-            title: "Curio — Les premières balles de golf sur la Lune",
-            privacy_level: "SELF_ONLY",
-            disable_duet: false,
-            disable_comment: false,
-            disable_stitch: false,
+            title:
+              "Curio — Les premières balles de golf sur la Lune",
+            privacy_level: privacyLevel,
+            disable_duet: Boolean(creator.duet_disabled),
+            disable_comment: Boolean(creator.comment_disabled),
+            disable_stitch: Boolean(creator.stitch_disabled),
             is_aigc: true
           },
           source_info: {
@@ -89,13 +168,17 @@ export default async function handler(req, res) {
     const publishId = initData.data.publish_id;
     const uploadUrl = initData.data.upload_url;
 
-    // Envoyer la vidéo
+    // =====================================================
+    // 6. Envoyer la vidéo à TikTok
+    // =====================================================
+
     const uploadResponse = await fetch(uploadUrl, {
       method: "PUT",
       headers: {
         "Content-Type": "video/mp4",
         "Content-Length": String(videoSize),
-        "Content-Range": `bytes 0-${videoSize - 1}/${videoSize}`
+        "Content-Range":
+          `bytes 0-${videoSize - 1}/${videoSize}`
       },
       body: videoBuffer
     });
@@ -109,12 +192,18 @@ export default async function handler(req, res) {
       });
     }
 
+    // =====================================================
+    // 7. Retourner le publish_id
+    // =====================================================
+
     return res.status(200).json({
       success: true,
-      message: "Publication TikTok lancée.",
+      message: "Vidéo envoyée à TikTok.",
       publish_id: publishId,
       upload_status: uploadResponse.status,
-      privacy_level: "SELF_ONLY"
+      privacy_level: privacyLevel,
+      creator_username: creator.creator_username,
+      creator_nickname: creator.creator_nickname
     });
 
   } catch (error) {
