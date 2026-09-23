@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
 <title>Curio — Validation</title>
 
 <style>
@@ -95,11 +96,17 @@ button {
   border: 1px solid #333;
 }
 
+button:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
 .status {
   text-align: center;
   margin-top: 25px;
   min-height: 25px;
   color: #d9ad55;
+  line-height: 1.5;
 }
 
 .info {
@@ -139,15 +146,22 @@ button {
 
   <div class="buttons">
 
-    <button class="validate" onclick="validateVideo()">
+    <button
+      id="validateButton"
+      class="validate"
+      onclick="validateVideo()">
       ✓ VALIDER ET PUBLIER
     </button>
 
-    <button class="modify" onclick="modifyVideo()">
+    <button
+      class="modify"
+      onclick="modifyVideo()">
       ✎ MODIFIER
     </button>
 
-    <button class="reject" onclick="rejectVideo()">
+    <button
+      class="reject"
+      onclick="rejectVideo()">
       ✕ REJETER
     </button>
 
@@ -165,23 +179,45 @@ button {
 <script>
 
 function validateVideo() {
+
+  const confirmed = confirm(
+    "Publier cette vidéo sur TikTok ?\n\n" +
+    "La publication sera effectuée avec le compte TikTok connecté."
+  );
+
+  if (!confirmed) {
+    return;
+  }
+
+  const button = document.getElementById("validateButton");
   const status = document.getElementById("status");
 
-  status.textContent =
-    "Validation enregistrée — publication TikTok à venir.";
+  button.disabled = true;
+  button.textContent = "Publication en cours…";
 
-  // La connexion à l'API TikTok sera ajoutée
-  // après validation de cette interface.
+  status.textContent =
+    "Envoi de la vidéo à TikTok…";
+
+  /*
+   * L'utilisateur vient explicitement de valider.
+   * Notre endpoint Direct Post déjà testé est appelé.
+   */
+  window.location.href =
+    "https://curio-six-jet.vercel.app/api/tiktok-publish-test";
 }
 
 function modifyVideo() {
+
   document.getElementById("status").textContent =
     "Vidéo envoyée pour modification.";
+
 }
 
 function rejectVideo() {
+
   document.getElementById("status").textContent =
     "Vidéo rejetée.";
+
 }
 
 </script>
