@@ -10,10 +10,6 @@ export default async function handler(req, res) {
     const videoUrl =
       "https://raw.githubusercontent.com/curio-cpu/curio-legal/main/2026-09-22-173225235.mp4";
 
-    // =====================================================
-    // 1. Récupérer le token TikTok
-    // =====================================================
-
     const supabaseResponse = await fetch(
       `${process.env.SUPABASE_URL}/rest/v1/tiktok_tokens?select=*&order=updated_at.desc&limit=1`,
       {
@@ -37,22 +33,25 @@ export default async function handler(req, res) {
 
     const token = tokens[0];
 
-    // =====================================================
-    // 2. Récupérer les informations du créateur
-    // =====================================================
-
+    /*
+     * Récupération des informations actuelles
+     * du créateur TikTok.
+     */
     const creatorResponse = await fetch(
       "https://open.tiktokapis.com/v2/post/publish/creator_info/query/",
       {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${token.access_token}`,
-          "Content-Type": "application/json; charset=UTF-8"
+          Authorization:
+            `Bearer ${token.access_token}`,
+          "Content-Type":
+            "application/json; charset=UTF-8"
         }
       }
     );
 
-    const creatorData = await creatorResponse.json();
+    const creatorData =
+      await creatorResponse.json();
 
     if (!creatorResponse.ok) {
       return res.status(creatorResponse.status).json({
@@ -62,158 +61,313 @@ export default async function handler(req, res) {
       });
     }
 
-    const creator = creatorData.data;
+    const creator =
+      creatorData.data;
 
     if (!creator) {
       return res.status(500).json({
         success: false,
         step: "CREATOR_INFO",
-        message: "Informations créateur introuvables."
+        message:
+          "Informations créateur introuvables."
       });
     }
 
-    // =====================================================
-    // 3. Paramètres fournis par l'utilisateur
-    // =====================================================
-
+    /*
+     * Données envoyées par l'interface Curio.
+     */
     const title =
       typeof req.body?.title === "string" &&
       req.body.title.trim()
         ? req.body.title.trim()
-        : "Curio — Les premières balles de golf sur la Lune";
+        : "";
 
-    const requestedPrivacy =
+    const privacyLevel =
       typeof req.body?.privacy_level === "string"
         ? req.body.privacy_level
-        : "SELF_ONLY";
+        : "";
 
-    const privacyOptions =
-      creator.privacy_level_options || [];
+    const allowComment =
+      req.body?.allow_comment === true;
 
-    if (!privacyOptions.includes(requestedPrivacy)) {
+    const allowDuet =
+      req.body?.allow_duet === true;
+
+    const allowStitch =
+      req.body?.allow_stitch === true;
+
+    if (!title) {
       return res.status(400).json({
         success: false,
-        step: "PRIVACY",
-        message: "Niveau de confidentialité non autorisé.",
-        requested: requestedPrivacy,
-        available: privacyOptions
+        step: "TITLE",
+        message:
+          "Le titre est obligatoire."
       });
     }
 
-    // =====================================================
-    // 4. Télécharger la vidéo
-    // =====================================================
+    if (!privacyLevel) {
+      return res.status(400).json({
+        success: false,
+        step: "PRIVACY",
+        message:
+          "Une confidentialité doit être sélectionnée."
+      });
+    }
 
-    const videoResponse = await fetch(videoUrl);
+    /*
+     * TikTok impose que la confidentialité
+     * corresponde aux options retournées
+     * par creator_info.
+     */
+    const privacyOptions =
+      creator.privacy_level_options || [];
+
+    if (
+      !privacyOptions.includes(
+        privacyLevel
+      )
+    ) {
+      return res.status(400).json({
+        success: false,
+        step: "PRIVACY",
+        message:
+          "Niveau de confidentialité non autorisé.",
+        requested:
+          privacyLevel,
+        available:
+          privacyOptions
+      });
+    }
+
+    /*
+     * Les paramètres d'interaction sont
+     * contrôlés par TikTok.
+     *
+     * Si TikTok indique qu'une fonction est
+     * désactivée pour le créateur, elle reste
+     * désactivée même si l'interface l'a envoyée.
+     */
+    const disableComment =
+      creator.comment_disabled
+        ? true
+        : !allowComment;
+
+    const disableDuet =
+      creator.duet_disabled
+        ? true
+        : !allowDuet;
+
+    const disableStitch =
+      creator.stitch_disabled
+        ? true
+        : !allowStitch;
+
+    /*
+     * Récupération de la vidéo.
+     */
+    const videoResponse =
+      await fetch(videoUrl);
 
     if (!videoResponse.ok) {
       return res.status(500).json({
         success: false,
         step: "VIDEO_DOWNLOAD",
-        message: "Impossible de récupérer la vidéo.",
-        status: videoResponse.status
+        message:
+          "Impossible de récupérer la vidéo.",
+        status:
+          videoResponse.status
       });
     }
 
-    const videoBuffer = Buffer.from(
-      await videoResponse.arrayBuffer()
-    );
+    const videoBuffer =
+      Buffer.from(
+        await videoResponse.arrayBuffer()
+      );
 
-    const videoSize = videoBuffer.length;
+    const videoSize =
+      videoBuffer.length;
 
     if (!videoSize) {
       return res.status(400).json({
         success: false,
         step: "VIDEO",
-        message: "La vidéo est vide."
+        message:
+          "La vidéo est vide."
       });
     }
 
-    // =====================================================
-    // 5. Initialiser Direct Post
-    // =====================================================
+    /*
+     * Vérification de la durée maximale
+     * communiquée par TikTok.
+     *
+     * La durée exacte est également contrôlée
+     * côté interface avec l'élément <video>.
+     */
+    const maxDuration =
+      Number(
+        creator.max_video_post_duration_sec
+      );
 
-    const initResponse = await fetch(
-      "https://open.tiktokapis.com/v2/post/publish/video/init/",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token.access_token}`,
-          "Content-Type": "application/json; charset=UTF-8"
-        },
-        body: JSON.stringify({
-          post_info: {
-            title,
-            privacy_level: requestedPrivacy,
-            disable_duet: Boolean(creator.duet_disabled),
-            disable_comment: Boolean(creator.comment_disabled),
-            disable_stitch: Boolean(creator.stitch_disabled),
-            is_aigc: true
+    /*
+     * Initialisation du Direct Post.
+     */
+    const initResponse =
+      await fetch(
+        "https://open.tiktokapis.com/v2/post/publish/video/init/",
+        {
+          method: "POST",
+
+          headers: {
+            Authorization:
+              `Bearer ${token.access_token}`,
+
+            "Content-Type":
+              "application/json; charset=UTF-8"
           },
-          source_info: {
-            source: "FILE_UPLOAD",
-            video_size: videoSize,
-            chunk_size: videoSize,
-            total_chunk_count: 1
-          }
-        })
-      }
-    );
 
-    const initData = await initResponse.json();
+          body: JSON.stringify({
 
-    if (!initResponse.ok || !initData.data?.publish_id) {
-      return res.status(initResponse.status || 500).json({
+            post_info: {
+              title,
+
+              privacy_level:
+                privacyLevel,
+
+              disable_duet:
+                disableDuet,
+
+              disable_comment:
+                disableComment,
+
+              disable_stitch:
+                disableStitch,
+
+              is_aigc: true
+            },
+
+            source_info: {
+              source:
+                "FILE_UPLOAD",
+
+              video_size:
+                videoSize,
+
+              chunk_size:
+                videoSize,
+
+              total_chunk_count:
+                1
+            }
+
+          })
+        }
+      );
+
+    const initData =
+      await initResponse.json();
+
+    if (
+      !initResponse.ok ||
+      !initData.data?.publish_id
+    ) {
+      return res.status(
+        initResponse.status || 500
+      ).json({
         success: false,
         step: "INIT",
         tiktok: initData
       });
     }
 
-    const publishId = initData.data.publish_id;
-    const uploadUrl = initData.data.upload_url;
+    const publishId =
+      initData.data.publish_id;
 
-    // =====================================================
-    // 6. Envoyer la vidéo
-    // =====================================================
+    const uploadUrl =
+      initData.data.upload_url;
 
-    const uploadResponse = await fetch(uploadUrl, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "video/mp4",
-        "Content-Length": String(videoSize),
-        "Content-Range":
-          `bytes 0-${videoSize - 1}/${videoSize}`
-      },
-      body: videoBuffer
-    });
+    /*
+     * Upload du fichier vidéo.
+     */
+    const uploadResponse =
+      await fetch(
+        uploadUrl,
+        {
+          method: "PUT",
 
-    const uploadText = await uploadResponse.text();
+          headers: {
+            "Content-Type":
+              "video/mp4",
+
+            "Content-Length":
+              String(videoSize),
+
+            "Content-Range":
+              `bytes 0-${videoSize - 1}/${videoSize}`
+          },
+
+          body:
+            videoBuffer
+        }
+      );
+
+    const uploadText =
+      await uploadResponse.text();
 
     if (!uploadResponse.ok) {
       return res.status(500).json({
         success: false,
         step: "UPLOAD",
-        publish_id: publishId,
-        upload_http_status: uploadResponse.status,
-        upload_response: uploadText
+        publish_id:
+          publishId,
+        upload_http_status:
+          uploadResponse.status,
+        upload_response:
+          uploadText
       });
     }
 
     return res.status(200).json({
       success: true,
-      message: "Vidéo envoyée à TikTok.",
-      publish_id: publishId,
-      privacy_level: requestedPrivacy,
+
+      message:
+        "Vidéo envoyée à TikTok.",
+
+      publish_id:
+        publishId,
+
+      privacy_level:
+        privacyLevel,
+
       title,
-      upload_http_status: uploadResponse.status
+
+      interactions: {
+        comments:
+          !disableComment,
+
+        duet:
+          !disableDuet,
+
+        stitch:
+          !disableStitch
+      },
+
+      max_video_post_duration_sec:
+        Number.isFinite(maxDuration)
+          ? maxDuration
+          : null,
+
+      upload_http_status:
+        uploadResponse.status
     });
 
   } catch (error) {
+
     return res.status(500).json({
       success: false,
-      message: "Erreur serveur.",
-      error: error.message
+      message:
+        "Erreur serveur.",
+      error:
+        error.message
     });
   }
 }
