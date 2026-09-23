@@ -1,7 +1,7 @@
 export default async function handler(req, res) {
   try {
     // ==================================================
-    // 1. RÉCUPÉRATION DU TOKEN TIKTOK DANS SUPABASE
+    // 1. VARIABLES VERCEL
     // ==================================================
 
     const supabaseUrl = process.env.SUPABASE_URL;
@@ -23,8 +23,12 @@ export default async function handler(req, res) {
       });
     }
 
+    // ==================================================
+    // 2. RÉCUPÉRER LE TOKEN TIKTOK
+    // ==================================================
+
     const supabaseResponse = await fetch(
-      `${supabaseUrl}/rest/v1/tiktok_tokens?select=open_id,access_token,refresh_token,scope,expires_at,updated_at&order=updated_at.desc&limit=1`,
+      `${supabaseUrl}/rest/v1/tiktok_tokens?select=open_id,access_token,scope,updated_at&order=updated_at.desc&limit=1`,
       {
         method: "GET",
         headers: {
@@ -74,14 +78,14 @@ export default async function handler(req, res) {
       return res.status(404).json({
         success: false,
         step: "token",
-        message: "Le token TikTok est absent de Supabase"
+        message: "Le token TikTok est absent"
       });
     }
 
     const accessToken = token.access_token;
 
     // ==================================================
-    // 2. VÉRIFICATION DU SCOPE
+    // 3. VÉRIFIER LE SCOPE
     // ==================================================
 
     const scopes = String(token.scope || "")
@@ -92,13 +96,13 @@ export default async function handler(req, res) {
       return res.status(403).json({
         success: false,
         step: "scope",
-        message: "Le token TikTok ne possède pas le scope video.upload",
+        message: "Le token TikTok ne possède pas video.upload",
         scopes
       });
     }
 
     // ==================================================
-    // 3. TÉLÉCHARGEMENT DE LA VIDÉO
+    // 4. TÉLÉCHARGER LA VIDÉO
     // ==================================================
 
     const videoUrl =
@@ -111,7 +115,7 @@ export default async function handler(req, res) {
         success: false,
         step: "video_download",
         status: videoResponse.status,
-        message: "Impossible de récupérer la vidéo depuis GitHub"
+        message: "Impossible de récupérer la vidéo"
       });
     }
 
@@ -125,23 +129,42 @@ export default async function handler(req, res) {
       return res.status(500).json({
         success: false,
         step: "video_size",
-        message: "La vidéo téléchargée est vide"
+        message: "La vidéo est vide"
       });
     }
 
     // ==================================================
-    // 4. CONFIGURATION DES CHUNKS
+    // 5. CALCUL CORRECT DES CHUNKS TIKTOK
     // ==================================================
 
-    // TikTok accepte des chunks de 5 MB à 64 MB.
-    // 10 MB est utilisé ici pour rester simple.
+    let chunkSize;
+    let totalChunkCount;
+
+    const MAX_SINGLE_UPLOAD = 64 * 1024 * 1024;
     const CHUNK_SIZE = 10 * 1024 * 1024;
 
-    const totalChunkCount =
-      Math.ceil(videoSize / CHUNK_SIZE);
+    if (videoSize <= MAX_SINGLE_UPLOAD) {
+      // Une vidéo jusqu'à 64 MB peut être envoyée
+      // entièrement en une seule fois.
+      chunkSize = videoSize;
+      totalChunkCount = 1;
+    } else {
+      // Vidéo > 64 MB :
+      // utiliser des blocs de 10 MB.
+      chunkSize = CHUNK_SIZE;
+
+      totalChunkCount = Math.floor(
+        videoSize / chunkSize
+      );
+
+      // Sécurité : minimum 1 bloc
+      if (totalChunkCount < 1) {
+        totalChunkCount = 1;
+      }
+    }
 
     // ==================================================
-    // 5. INITIALISATION DU UPLOAD TIKTOK
+    // 6. INITIALISER L'UPLOAD TIKTOK
     // ==================================================
 
     const initResponse = await fetch(
@@ -156,10 +179,7 @@ export default async function handler(req, res) {
           source_info: {
             source: "FILE_UPLOAD",
             video_size: videoSize,
-            chunk_size:
-              totalChunkCount === 1
-                ? videoSize
-                : CHUNK_SIZE,
+            chunk_size: chunkSize,
             total_chunk_count: totalChunkCount
           }
         })
@@ -176,7 +196,7 @@ export default async function handler(req, res) {
       return res.status(500).json({
         success: false,
         step: "tiktok_init_json",
-        message: "TikTok a retourné une réponse invalide",
+        message: "Réponse TikTok invalide",
         details: initText
       });
     }
@@ -189,7 +209,10 @@ export default async function handler(req, res) {
         success: false,
         step: "tiktok_init",
         status: initResponse.status,
-        tiktok: initData
+        tiktok: initData,
+        video_size: videoSize,
+        chunk_size: chunkSize,
+        total_chunk_count: totalChunkCount
       });
     }
 
@@ -200,20 +223,20 @@ export default async function handler(req, res) {
       return res.status(500).json({
         success: false,
         step: "tiktok_init_response",
-        message: "TikTok n'a pas fourni publish_id ou upload_url",
+        message: "TikTok n'a pas fourni upload_url",
         tiktok: initData
       });
     }
 
     // ==================================================
-    // 6. ENVOI DE LA VIDÉO À TIKTOK
+    // 7. ENVOYER LA VIDÉO
     // ==================================================
 
-    for (let i = 0; i < totalChunkCount; i++) {
-      const start = i * CHUNK_SIZE;
+    let uploadedChunks = 0;
 
+    for (let start = 0; start < videoSize; start += chunkSize) {
       const end = Math.min(
-        start + CHUNK_SIZE,
+        start + chunkSize,
         videoSize
       );
 
@@ -240,40 +263,43 @@ export default async function handler(req, res) {
         await uploadResponse.text();
 
       if (
-        !uploadResponse.ok &&
         uploadResponse.status !== 201 &&
         uploadResponse.status !== 206
       ) {
-        return res.status(uploadResponse.status).json({
+        return res.status(uploadResponse.status || 500).json({
           success: false,
           step: "tiktok_upload",
-          chunk: i + 1,
-          total_chunks: totalChunkCount,
           status: uploadResponse.status,
-          details: uploadText
+          uploaded_chunks: uploadedChunks,
+          error: uploadText
         });
       }
+
+      uploadedChunks++;
     }
 
     // ==================================================
-    // 7. SUCCÈS
+    // 8. SUCCÈS
     // ==================================================
 
     return res.status(200).json({
       success: true,
-      message: "Vidéo envoyée à TikTok avec succès",
+      message: "Vidéo envoyée à TikTok",
+      method: "FILE_UPLOAD",
       publish_id: publishId,
       video_size: videoSize,
-      total_chunks: totalChunkCount,
-      scope: "video.upload",
-      method: "FILE_UPLOAD"
+      chunk_size: chunkSize,
+      total_chunk_count: totalChunkCount,
+      uploaded_chunks: uploadedChunks
     });
 
   } catch (error) {
     return res.status(500).json({
       success: false,
       step: "server",
-      message: error?.message || "Erreur serveur inconnue"
+      message:
+        error?.message ||
+        "Erreur serveur inconnue"
     });
   }
 }
